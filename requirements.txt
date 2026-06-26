@@ -1,0 +1,11 @@
+flask==3.0.0
+flask-login==0.6.3
+flask-sqlalchemy==3.1.1
+tensorflow==2.15.0
+numpy==1.26.2
+Pillow==10.1.0
+werkzeug==3.0.1
+reportlab==4.0.7
+matplotlib==3.8.2
+opencv-python-headless==4.9.0.80
+scipy==1.11.4
