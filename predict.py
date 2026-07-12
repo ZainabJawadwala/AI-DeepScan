@@ -5,7 +5,6 @@ import os
 import io
 import base64
 import numpy as np
-import tensorflow as tf
 from PIL import Image
 import matplotlib
 matplotlib.use("Agg")
@@ -16,14 +15,23 @@ IMG_SIZE = (224, 224)
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "deepfake_model.h5")
 
 _model = None
+_tf = None
 
 
 def load_model():
-    global _model
+    global _model, _tf
     if _model is None:
-        if os.path.exists(MODEL_PATH):
+        if _tf is None:
             try:
-                _model = tf.keras.models.load_model(MODEL_PATH)
+                import tensorflow as tf
+                _tf = tf
+            except Exception as exc:
+                print(f"Warning: TensorFlow import failed: {exc}")
+                _tf = None
+
+        if os.path.exists(MODEL_PATH) and _tf is not None:
+            try:
+                _model = _tf.keras.models.load_model(MODEL_PATH)
             except Exception as exc:
                 print(f"Warning: failed to load model at {MODEL_PATH}: {exc}")
                 _model = "demo"
@@ -42,6 +50,7 @@ def preprocess(image_path):
 def grad_cam(model, img_array, last_conv_layer_name="top_conv"):
     """Generate Grad-CAM heatmap for the predicted class."""
     try:
+        import tensorflow as tf
         grad_model = tf.keras.models.Model(
             inputs=model.inputs,
             outputs=[model.get_layer(last_conv_layer_name).output, model.output],
