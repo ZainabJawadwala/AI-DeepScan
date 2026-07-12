@@ -60,15 +60,26 @@ def load_model():
                 print(f"Warning: TensorFlow import failed: {exc}")
                 _tf = None
 
+        allow_demo = os.environ.get("ALLOW_DEMO", "0") == "1"
         if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0 and _tf is not None:
             try:
                 _model = _tf.keras.models.load_model(MODEL_PATH)
             except Exception as exc:
-                print(f"Warning: failed to load model at {MODEL_PATH}: {exc}")
-                _model = "demo"
+                if allow_demo:
+                    print(f"Warning: failed to load model at {MODEL_PATH}: {exc}")
+                    _model = "demo"
+                else:
+                    raise RuntimeError(
+                        f"Failed to load model at {MODEL_PATH}: {exc}."
+                        " Set MODEL_URL or provide a valid model file."
+                    )
         else:
-            # Demo mode: random predictions so the app works without a trained model
-            _model = "demo"
+            if allow_demo:
+                _model = "demo"
+            else:
+                raise RuntimeError(
+                    "No valid model available. Set MODEL_URL or place a valid model/deepfake_model.h5 in the repo."
+                )
     return _model
 
 
@@ -191,7 +202,12 @@ def predict(image_path):
     model = load_model()
     img_array, pil_img = preprocess(image_path)
 
+    allow_demo = os.environ.get("ALLOW_DEMO", "0") == "1"
     if model == "demo":
+        if not allow_demo:
+            raise RuntimeError(
+                "Demo model fallback is disabled. Set ALLOW_DEMO=1 to use demo mode, or provide a valid model."
+            )
         import random
         fake_prob = round(random.uniform(0.1, 0.95), 4)
     else:
@@ -200,13 +216,19 @@ def predict(image_path):
         except RecursionError as e:
             print("RecursionError during model.predict:", e)
             traceback.print_exc()
-            import random
-            fake_prob = round(random.uniform(0.1, 0.95), 4)
+            if allow_demo:
+                import random
+                fake_prob = round(random.uniform(0.1, 0.95), 4)
+            else:
+                raise
         except Exception as e:
             print("Model prediction error:", type(e).__name__, e)
             traceback.print_exc()
-            import random
-            fake_prob = round(random.uniform(0.1, 0.95), 4)
+            if allow_demo:
+                import random
+                fake_prob = round(random.uniform(0.1, 0.95), 4)
+            else:
+                raise
 
     label = "AI GENERATED" if fake_prob >= 0.5 else "AUTHENTIC"
     confidence = max(fake_prob, 1 - fake_prob) * 100

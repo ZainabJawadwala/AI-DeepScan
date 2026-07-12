@@ -7,6 +7,7 @@ Summary
 Steps to prepare a model (Option A: S3 / public URL)
 1. Upload `deepfake_model.h5` to S3 (or another host) and make it accessible (signed URL or public).
 2. In Render dashboard, add an environment variable `MODEL_URL` pointing to the model file URL.
+3. Optionally, if you want the app to run without a valid model, set `ALLOW_DEMO=1` in Render.
 
 Steps for Render deployment
 1. Ensure repository contains:
