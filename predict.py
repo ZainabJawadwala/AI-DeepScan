@@ -25,6 +25,33 @@ _plt_lock = threading.Lock()  # matplotlib.pyplot is not thread-safe; serialize 
 def load_model():
     global _model, _tf
     if _model is None:
+        # If model file is missing or empty, try to download from MODEL_URL
+        try:
+            if (not os.path.exists(MODEL_PATH)) or os.path.getsize(MODEL_PATH) == 0:
+                model_url = os.environ.get("MODEL_URL")
+                if model_url:
+                    try:
+                        from urllib.request import urlopen
+                        print(f"Attempting to download model from {model_url} to {MODEL_PATH}")
+                        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+                        with urlopen(model_url, timeout=30) as resp:
+                            if resp.status != 200:
+                                print(f"Model download failed with status: {resp.status}")
+                            else:
+                                with open(MODEL_PATH, "wb") as out_f:
+                                    chunk = resp.read(8192)
+                                    total = 0
+                                    while chunk:
+                                        out_f.write(chunk)
+                                        total += len(chunk)
+                                        if total > 1024 * 1024 * 1024:  # 1GB safety limit
+                                            raise RuntimeError("Model too large")
+                                        chunk = resp.read(8192)
+                                print(f"Model downloaded ({total} bytes)")
+                    except Exception as dl_exc:
+                        print(f"Model download failed: {dl_exc}")
+        except Exception:
+            pass
         if _tf is None:
             try:
                 import tensorflow as tf
@@ -33,7 +60,7 @@ def load_model():
                 print(f"Warning: TensorFlow import failed: {exc}")
                 _tf = None
 
-        if os.path.exists(MODEL_PATH) and _tf is not None:
+        if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0 and _tf is not None:
             try:
                 _model = _tf.keras.models.load_model(MODEL_PATH)
             except Exception as exc:
