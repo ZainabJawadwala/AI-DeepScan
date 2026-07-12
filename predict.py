@@ -4,6 +4,7 @@ predict.py — Inference engine with Grad-CAM heatmap and AI explanation.
 import os
 import io
 import base64
+import threading
 import numpy as np
 from PIL import Image
 import matplotlib
@@ -16,6 +17,7 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "deepfake_model.h5
 
 _model = None
 _tf = None
+_plt_lock = threading.Lock()  # matplotlib.pyplot is not thread-safe; serialize chart/heatmap rendering
 
 
 def load_model():
@@ -74,52 +76,54 @@ def grad_cam(model, img_array, last_conv_layer_name="top_conv"):
 
 def heatmap_to_base64(cam, original_img):
     """Overlay heatmap on original image, return base64 PNG."""
-    cam_resized = np.array(
-        Image.fromarray((cam * 255).astype(np.uint8)).resize(original_img.size, Image.LANCZOS),
-        dtype=np.float32,
-    ) / 255.0
+    with _plt_lock:
+        cam_resized = np.array(
+            Image.fromarray((cam * 255).astype(np.uint8)).resize(original_img.size, Image.LANCZOS),
+            dtype=np.float32,
+        ) / 255.0
 
-    colormap = cm.get_cmap("jet")
-    heatmap_rgb = colormap(cam_resized)[:, :, :3]
+        colormap = cm.get_cmap("jet")
+        heatmap_rgb = colormap(cam_resized)[:, :, :3]
 
-    orig_arr = np.array(original_img, dtype=np.float32) / 255.0
-    overlay = 0.55 * orig_arr + 0.45 * heatmap_rgb
-    overlay = np.clip(overlay * 255, 0, 255).astype(np.uint8)
+        orig_arr = np.array(original_img, dtype=np.float32) / 255.0
+        overlay = 0.55 * orig_arr + 0.45 * heatmap_rgb
+        overlay = np.clip(overlay * 255, 0, 255).astype(np.uint8)
 
-    buf = io.BytesIO()
-    Image.fromarray(overlay).save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode()
+        buf = io.BytesIO()
+        Image.fromarray(overlay).save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode()
 
 
 def probability_chart_base64(fake_prob):
     """Horizontal bar chart showing Authentic vs AI Generated probability."""
-    real_prob = 1 - fake_prob
-    fig, ax = plt.subplots(figsize=(5, 1.8), facecolor="#0f0f1a")
-    ax.set_facecolor("#0f0f1a")
+    with _plt_lock:
+        real_prob = 1 - fake_prob
+        fig, ax = plt.subplots(figsize=(5, 1.8), facecolor="#0f0f1a")
+        ax.set_facecolor("#0f0f1a")
 
-    bars = ax.barh(
-        ["Authentic", "AI Generated"],
-        [real_prob * 100, fake_prob * 100],
-        color=["#b0b0b0", "#ffffff"],
-        height=0.5,
-        edgecolor="none",
-    )
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("Probability (%)", color="#b0b8d4", fontsize=9)
-    ax.tick_params(colors="#b0b8d4", labelsize=9)
-    ax.spines[:].set_color("#2a2d4a")
-
-    for bar, val in zip(bars, [real_prob * 100, fake_prob * 100]):
-        ax.text(
-            bar.get_width() + 1, bar.get_y() + bar.get_height() / 2,
-            f"{val:.1f}%", va="center", color="#ffffff", fontsize=9, fontweight="bold",
+        bars = ax.barh(
+            ["Authentic", "AI Generated"],
+            [real_prob * 100, fake_prob * 100],
+            color=["#b0b0b0", "#ffffff"],
+            height=0.5,
+            edgecolor="none",
         )
+        ax.set_xlim(0, 100)
+        ax.set_xlabel("Probability (%)", color="#b0b8d4", fontsize=9)
+        ax.tick_params(colors="#b0b8d4", labelsize=9)
+        ax.spines[:].set_color("#2a2d4a")
 
-    plt.tight_layout(pad=0.5)
-    buf = io.BytesIO()
-    plt.savefig(buf, format="PNG", facecolor=fig.get_facecolor(), dpi=110)
-    plt.close(fig)
-    return base64.b64encode(buf.getvalue()).decode()
+        for bar, val in zip(bars, [real_prob * 100, fake_prob * 100]):
+            ax.text(
+                bar.get_width() + 1, bar.get_y() + bar.get_height() / 2,
+                f"{val:.1f}%", va="center", color="#ffffff", fontsize=9, fontweight="bold",
+            )
+
+        plt.tight_layout(pad=0.5)
+        buf = io.BytesIO()
+        plt.savefig(buf, format="PNG", facecolor=fig.get_facecolor(), dpi=110)
+        plt.close(fig)
+        return base64.b64encode(buf.getvalue()).decode()
 
 
 def explain(fake_prob, label):
