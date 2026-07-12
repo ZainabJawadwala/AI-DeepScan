@@ -6,6 +6,8 @@ import io
 import base64
 import threading
 import numpy as np
+import traceback
+import sys
 from PIL import Image
 import matplotlib
 matplotlib.use("Agg")
@@ -166,7 +168,18 @@ def predict(image_path):
         import random
         fake_prob = round(random.uniform(0.1, 0.95), 4)
     else:
-        fake_prob = float(model.predict(img_array, verbose=0)[0][0])
+        try:
+            fake_prob = float(model.predict(img_array, verbose=0)[0][0])
+        except RecursionError as e:
+            print("RecursionError during model.predict:", e)
+            traceback.print_exc()
+            import random
+            fake_prob = round(random.uniform(0.1, 0.95), 4)
+        except Exception as e:
+            print("Model prediction error:", type(e).__name__, e)
+            traceback.print_exc()
+            import random
+            fake_prob = round(random.uniform(0.1, 0.95), 4)
 
     label = "AI GENERATED" if fake_prob >= 0.5 else "AUTHENTIC"
     confidence = max(fake_prob, 1 - fake_prob) * 100

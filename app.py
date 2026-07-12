@@ -21,6 +21,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 from predict import predict
+import traceback
 
 # ── App setup ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(__file__)
@@ -116,7 +117,13 @@ def analyze():
 
     try:
         result = predict(save_path)
+    except RecursionError as e:
+        app.logger.exception('RecursionError during prediction')
+        traceback.print_exc()
+        return jsonify({"error": "Prediction failed: maximum recursion depth exceeded"}), 500
     except Exception as e:
+        app.logger.exception('Prediction error')
+        traceback.print_exc()
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
     # Persist scan
