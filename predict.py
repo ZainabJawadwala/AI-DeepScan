@@ -209,7 +209,7 @@ def predict(image_path):
                 "Demo model fallback is disabled. Set ALLOW_DEMO=1 to use demo mode, or provide a valid model."
             )
         import random
-        fake_prob = round(random.uniform(0.1, 0.95), 4)
+        fake_prob = round(random.uniform(0.0, 0.95), 4)
     else:
         try:
             fake_prob = float(model.predict(img_array, verbose=0)[0][0])
@@ -218,7 +218,7 @@ def predict(image_path):
             traceback.print_exc()
             if allow_demo:
                 import random
-                fake_prob = round(random.uniform(0.1, 0.95), 4)
+                fake_prob = round(random.uniform(0.0, 0.95), 4)
             else:
                 raise
         except Exception as e:
@@ -226,7 +226,7 @@ def predict(image_path):
             traceback.print_exc()
             if allow_demo:
                 import random
-                fake_prob = round(random.uniform(0.1, 0.95), 4)
+                fake_prob = round(random.uniform(0.0, 0.95), 4)
             else:
                 raise
 
